@@ -7,7 +7,7 @@ services:
     startCommand: gunicorn -w 2 -k gthread --threads 8 -t 60 --bind 0.0.0.0:$PORT main:app
     healthCheckPath: /healthz
     envVars:
-      - key: TELEGRAM_BOT_Token
+      - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: DATABASE_URL
         sync: false
