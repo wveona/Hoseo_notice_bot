@@ -1,0 +1,18 @@
+name: daily-notice
+
+on:
+  schedule:
+    - cron: "0 3 * * *"  # UTC 03:00 = KST 12:00
+  workflow_dispatch: {}
+
+jobs:
+  call-crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Render endpoint
+        run: |
+          curl -sS -X POST "$SERVICE_URL/crawl-and-notify" \
+            -H "X-CRON-TOKEN: $SCHEDULER_TOKEN"
+        env:
+          SERVICE_URL: ${{ secrets.SERVICE_URL }}
+          SCHEDULER_TOKEN: ${{ secrets.SCHEDULER_TOKEN }}
