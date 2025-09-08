@@ -11,6 +11,10 @@ if DATABASE_URL and "sslmode=" not in DATABASE_URL:
     sep = "&" if "?" in DATABASE_URL else "?"
     DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
 
+# 테이블명 상수 (기존 'posts' 명칭 충돌 회피)
+POSTS_TABLE = "sent_posts"
+SUBSCRIBERS_TABLE = "subscribers"
+
 
 def _get_connection():
     if not DATABASE_URL:
@@ -21,15 +25,15 @@ def _get_connection():
 def init_db():
     """
     PostgreSQL에 필요한 테이블을 생성합니다.
-    - posts(link UNIQUE)
+    - sent_posts(link UNIQUE)
     - subscribers(user_id UNIQUE)
     """
     conn = _get_connection()
     cur = conn.cursor()
     try:
         cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS posts (
+            f"""
+            CREATE TABLE IF NOT EXISTS {POSTS_TABLE} (
                 id SERIAL PRIMARY KEY,
                 link TEXT NOT NULL UNIQUE,
                 title TEXT NOT NULL,
@@ -38,8 +42,8 @@ def init_db():
             """
         )
         cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS subscribers (
+            f"""
+            CREATE TABLE IF NOT EXISTS {SUBSCRIBERS_TABLE} (
                 id SERIAL PRIMARY KEY,
                 user_id TEXT NOT NULL UNIQUE,
                 subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -56,7 +60,7 @@ def add_sent_post(link: str, title: str) -> None:
     conn = _get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("INSERT INTO posts (link, title) VALUES (%s, %s) ON CONFLICT (link) DO NOTHING", (link, title))
+        cur.execute(f"INSERT INTO {POSTS_TABLE} (link, title) VALUES (%s, %s) ON CONFLICT (link) DO NOTHING", (link, title))
         conn.commit()
         print(f"✅ DB에 공지 기록 완료: {title[:30]}...")
     finally:
@@ -68,7 +72,7 @@ def is_post_sent(link: str) -> bool:
     conn = _get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id FROM posts WHERE link = %s LIMIT 1", (link,))
+        cur.execute(f"SELECT id FROM {POSTS_TABLE} WHERE link = %s LIMIT 1", (link,))
         row = cur.fetchone()
         return row is not None
     finally:
@@ -84,7 +88,7 @@ def add_subscriber(user_id: str) -> bool:
     conn = _get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("INSERT INTO subscribers (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING", (user_id,))
+        cur.execute(f"INSERT INTO {SUBSCRIBERS_TABLE} (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING", (user_id,))
         changed = cur.rowcount
         conn.commit()
         if changed:
@@ -101,7 +105,7 @@ def remove_subscriber(user_id: str) -> bool:
     conn = _get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM subscribers WHERE user_id = %s", (user_id,))
+        cur.execute(f"DELETE FROM {SUBSCRIBERS_TABLE} WHERE user_id = %s", (user_id,))
         deleted = cur.rowcount
         conn.commit()
         if deleted:
@@ -118,7 +122,7 @@ def list_subscribers() -> list[str]:
     conn = _get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT user_id FROM subscribers ORDER BY id ASC")
+        cur.execute(f"SELECT user_id FROM {SUBSCRIBERS_TABLE} ORDER BY id ASC")
         rows = cur.fetchall()
         return [r["user_id"] for r in rows]
     finally:
@@ -130,7 +134,7 @@ def is_subscribed(user_id: str) -> bool:
     conn = _get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id FROM subscribers WHERE user_id = %s LIMIT 1", (user_id,))
+        cur.execute(f"SELECT id FROM {SUBSCRIBERS_TABLE} WHERE user_id = %s LIMIT 1", (user_id,))
         row = cur.fetchone()
         return row is not None
     finally:
