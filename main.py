@@ -18,7 +18,7 @@ def healthz():
     return "ok", 200
 
 # 애플리케이션이 처음 실행될 때, 데이터베이스를 초기화하는 함수를 호출합니다.
-# 이를 통해 서버가 시작될 때 항상 'posts.db' 파일과 'posts' 테이블이 준비됩니다.
+# 이를 통해 서버가 시작될 때 항상 테이블이 준비됩니다.
 database.init_db()
 
 # '/crawl-and-notify' 경로로 POST 요청이 올 때 실행될 함수를 정의합니다.
@@ -26,7 +26,7 @@ database.init_db()
 @app.route('/crawl-and-notify', methods=['POST'])
 def crawl_and_notify():
     """
-    웹사이트를 크롤링하여 새로운 게시글이 있으면 텔레그램 구독자에게 알림을 보냅니다.
+    웹사이트를 크롤링하여 새로운 게시글이 있으면 텔레그램으로 알림을 보냅니다.
     """
     print("크롤링 및 알림 작업을 시작합니다...")
     
@@ -47,8 +47,13 @@ def crawl_and_notify():
         
         print(f"새로운 공지 {len(new_posts)}개 발견")
         
-        # 각 새로운 공지를 구독자들에게 발송합니다
-        subscribers = database.list_subscribers()
+        # 수신자 결정: TARGET_CHAT_IDS(쉼표구분) 우선, 없으면 DB 구독자
+        target_chat_ids_env = os.environ.get('TARGET_CHAT_IDS', '').strip()
+        if target_chat_ids_env:
+            recipients = [cid.strip() for cid in target_chat_ids_env.split(',') if cid.strip()]
+        else:
+            recipients = database.list_subscribers()
+        
         total_sent = 0
         
         for post in new_posts:
@@ -58,30 +63,29 @@ def crawl_and_notify():
             
             print(f"공지 발송 중: {title}")
             
-            # 텔레그램 구독자들에게 발송
             success_count = 0
-            for chat_id in subscribers:
+            for chat_id in recipients:
                 if tg_send_message(chat_id, text, disable_web_page_preview=False):
                     success_count += 1
             
-            print(f"텔레그램 전송 완료: {success_count}/{len(subscribers)}")
+            print(f"텔레그램 전송 완료: {success_count}/{len(recipients)}")
             total_sent += success_count
             
-            # DB에 발송 완료 기록
+            # DB에 발송 완료 기록(중복 방지)
             database.add_sent_post(link, title)
         
         return jsonify({
             "status": "success",
-            "message": f"새 공지 {len(new_posts)}개를 구독자들에게 알렸습니다.",
+            "message": f"새 공지 {len(new_posts)}개 발송 완료",
             "posts_count": len(new_posts),
             "total_sent": total_sent,
-            "subscribers_count": len(subscribers)
+            "recipients_count": len(recipients)
         }), 200
     except Exception as e:
         print(f"크롤링 및 알림 작업 중 오류 발생: {e}")
         return jsonify({"status": "error", "message": f"작업 오류: {str(e)}"}), 500
 
-# 텔레그램 봇 웹훅 엔드포인트
+# 텔레그램 봇 웹훅 엔드포인트(옵션)
 @app.route('/telegram/webhook', methods=['POST'])
 def telegram_webhook():
     try:
@@ -94,33 +98,21 @@ def telegram_webhook():
         if not chat_id or not text:
             return jsonify({"ok": True})
 
+        # 간단 응답만 유지(필요 없으면 웹훅 비활성화 가능)
         if text in ('/start', '/help'):
             help_text = (
-                "명령어 안내:\n"
-                "- /latest: 최근 5개 공지 확인\n"
-                "- /subscribe: 공지 알림 구독\n"
-                "- /unsubscribe: 공지 알림 해제"
+                "이 봇은 매일 12시에 새로운 학사공지를 전송합니다.\n"
+                "필요 시 /subscribe 로 구독, /unsubscribe 로 해제할 수 있습니다."
             )
             tg_send_message(chat_id, help_text)
-        elif text == '/latest':
-            # 최근 5개 공지를 보여줍니다
-            from crawler import get_recent_posts
-            posts = get_recent_posts(limit=5)
-            if not posts:
-                tg_send_message(chat_id, '크롤링에 실패했습니다. 잠시 후 다시 시도해 주세요.')
-            else:
-                message = "📋 최근 공지사항:\n\n"
-                for i, post in enumerate(posts, 1):
-                    message += f"{i}. {post['title']}\n🔗 {post['link']}\n\n"
-                tg_send_message(chat_id, message)
         elif text == '/subscribe':
             database.add_subscriber(str(chat_id))
-            tg_send_message(chat_id, '알림 구독이 완료되었습니다. 새로운 공지 시 메시지를 받게 됩니다.')
+            tg_send_message(chat_id, '알림 구독이 완료되었습니다.')
         elif text == '/unsubscribe':
             database.remove_subscriber(str(chat_id))
             tg_send_message(chat_id, '알림 구독이 해제되었습니다.')
         else:
-            tg_send_message(chat_id, "알 수 없는 명령입니다. /help 를 입력해 보세요.")
+            tg_send_message(chat_id, "이 봇은 스케줄 알림용입니다. /help 를 참고하세요.")
 
         return jsonify({"ok": True})
     except Exception as e:
