@@ -2,7 +2,6 @@ services:
   - type: web
     name: hoseo-notice-bot
     runtime: python
-    pythonVersion: 3.11.9
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -w 2 -k gthread --threads 8 -t 60 --bind 0.0.0.0:$PORT main:app
     healthCheckPath: /healthz
