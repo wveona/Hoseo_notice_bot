@@ -10,5 +10,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Render가 제공하는 $PORT에 바인딩
-CMD ["/bin/sh", "-c", "exec gunicorn -w 2 -k gthread --threads 8 -t 60 --bind 0.0.0.0:$PORT main:app"]
+# 환경변수에 따라 다른 명령어 실행
+CMD ["/bin/sh", "-c", "if [ \"$CRON_MODE\" = \"true\" ]; then python cron_runner.py; else exec gunicorn -w 2 -k gthread --threads 8 -t 60 --bind 0.0.0.0:$PORT main:app; fi"]
