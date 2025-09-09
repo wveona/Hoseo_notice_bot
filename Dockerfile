@@ -10,5 +10,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Render가 제공하는 $PORT에 바인딩
-CMD ["/bin/sh", "-c", "exec gunicorn -w 2 -k gthread --threads 8 -t 60 --bind 0.0.0.0:$PORT main:app"]
+# Cron Job용 명령어
+CMD ["python", "-c", "import requests; requests.post('https://hoseo-notice-bot.onrender.com/crawl-and-notify', headers={'X-CRON-TOKEN': 'your_scheduler_token'})"]
