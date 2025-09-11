@@ -1,6 +1,6 @@
-# 호서대학교 학사공지 알림 봇
+# 호서대학교 학사공지 알림 봇 (라인)
 
-호서대학교 학사공지사항을 자동으로 크롤링하여 새로운 공지가 올라오면 텔레그램으로 알림을 보내는 봇입니다.
+호서대학교 학사공지사항을 자동으로 크롤링하여 새로운 공지가 올라오면 라인으로 알림을 보내는 챗봇입니다.
 
 본 프로젝트는 AI를 활용하여 변화하는 웹 구조에 보다 유연하게 대응하고, 게시글 텍스트 정규화와 잡음(불필요 공백/특수문자 등) 제거, 링크 추출 실패 시 백업 로직 선택 등 크롤링 정확도를 향상하도록 설계되었습니다.
 
@@ -8,7 +8,7 @@
 
 - **자동 크롤링**: 호서대학교 학사공지사항 웹사이트를 주기적으로 모니터링
 - **새 공지 감지**: 새로운 공지사항이 올라오면 자동으로 감지
-- **텔레그램 알림**: 구독자에게 텔레그램으로 즉시 전송
+- **라인 알림**: 구독자에게 라인으로 즉시 전송
 - **중복 방지**: 이미 발송된 공지는 다시 발송하지 않음
 - **상태 모니터링**: `/status`로 크롤링 상태와 최신 공지 확인
 
@@ -22,7 +22,7 @@
 ## 📋 요구사항
 
 - Python 3.11+
-- 텔레그램 봇 토큰(TELEGRAM_BOT_TOKEN)
+- 라인 챗봇 토큰(LINE_CHANNEL_ACCESS_TOKEN, LINE_CHANNEL_SECRET)
 - 인터넷 연결
 
 ## 🛠️ 설치 및 설정
@@ -34,7 +34,8 @@ pip install -r requirements.txt
 
 ### 2. 환경 변수 설정
 ```bash
-export TELEGRAM_BOT_TOKEN=your_bot_token_here
+export LINE_CHANNEL_ACCESS_TOKEN=your_channel_access_token
+export LINE_CHANNEL_SECRET=your_channel_secret
 # Render PostgreSQL 연결(필수)
 # 예: postgres://USER:PASSWORD@HOST:PORT/DBNAME
 export DATABASE_URL=postgres://... 
@@ -42,40 +43,35 @@ export DATABASE_URL=postgres://...
 export SCHEDULER_TOKEN=your_secret_token
 ```
 
-### 3. 텔레그램 봇 만들기
-1) 텔레그램에서 BotFather와 대화 후 /newbot 으로 봇 생성
-2) 발급받은 토큰을 `TELEGRAM_BOT_TOKEN`으로 설정
+### 3. 라인 챗봇 설정
+1) 라인 채널 생성 및 챗봇 설정
+2) 발급받은 토큰들을 환경변수로 설정:
+   - `LINE_CHANNEL_ACCESS_TOKEN`: 채널 액세스 토큰
+   - `LINE_CHANNEL_SECRET`: 채널 시크릿
+3) 웹훅 URL 설정: `https://your-domain.com/line/webhook`
 
 ### 4. 서버 실행
 ```bash
 python main.py
 ```
 
-### 5. 텔레그램 웹훅 설정
-프로덕션(공개 HTTPS 도메인 보유) 환경에서는 웹훅을 권장합니다. 아래 엔드포인트를 텔레그램에 등록합니다.
-- 웹훅 URL: `https://your-domain.com/telegram/webhook`
+### 5. 라인 웹훅 설정
+프로덕션(공개 HTTPS 도메인 보유) 환경에서는 웹훅을 권장합니다. 아래 엔드포인트를 라인 채널에 등록합니다.
+- 웹훅 URL: `https://your-domain.com/line/webhook`
 
-설정 방법(예시):
-```bash
-# 서버의 /telegram/webhook 주소로 웹훅 설정 요청 (토큰 필요)
-# 실제 운영에서는 별도 스크립트/관리 라우트를 만들어 자동화하는 것을 권장
-curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
-  -d url="https://your-domain.com/telegram/webhook"
-```
-
-로컬 개발 시에는 웹훅 대신 폴링을 사용할 수 있으나, 본 프로젝트는 웹훅 엔드포인트만 제공합니다. 로컬 테스트는 `ngrok` 같은 터널러로 공개 URL을 만들어 진행하세요.
+라인 채널 관리자센터에서 웹훅 URL을 설정하세요.
 
 ## 📡 API 엔드포인트
 
 ### POST /crawl-and-notify
-새로운 공지를 크롤링하고 텔레그램 구독자에게 알립니다.
+새로운 공지를 크롤링하고 라인 구독자에게 알립니다.
 
-### POST /telegram/webhook
-텔레그램이 전송하는 업데이트를 수신합니다. 지원 명령어:
-- `/help` 또는 `/start`: 명령어 안내
-- `/latest`: 최근 5개 공지 확인
-- `/subscribe`: 알림 구독(현재 채팅 id를 구독자로 등록)
-- `/unsubscribe`: 알림 구독 해제
+### POST /line/webhook
+라인이 전송하는 메시지를 수신합니다. 지원 명령어:
+- `도움말` 또는 `시작`: 명령어 안내
+- `구독` 또는 `알림`: 알림 구독
+- `구독해제` 또는 `해제`: 알림 해제
+- `최신공지`: 최신 공지사항 확인
 
 ### GET /status
 현재 크롤링 상태와 최신 공지 정보를 확인합니다.

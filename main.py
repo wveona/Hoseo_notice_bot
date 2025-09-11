@@ -1,7 +1,7 @@
 # main.py
 from flask import Flask, request, jsonify
 from crawler import get_latest_post, get_new_posts_since_last_check
-from telegram_utils import send_message as tg_send_message
+from line_utils import send_notice_message as line_send_message, verify_signature
 import database
 import os
 
@@ -11,7 +11,7 @@ app = Flask(__name__)
 # 간단한 헬스체크 및 루트 페이지
 @app.route('/', methods=['GET'])
 def root():
-    return jsonify({"status": "ok", "service": "hoseo_notice_bot", "env": "render"}), 200
+    return jsonify({"status": "ok", "service": "hoseo_notice_bot", "env": "render", "platform": "line"}), 200
 
 @app.route('/healthz', methods=['GET'])
 def healthz():
@@ -26,7 +26,7 @@ database.init_db()
 @app.route('/crawl-and-notify', methods=['POST'])
 def crawl_and_notify():
     """
-    웹사이트를 크롤링하여 새로운 게시글이 있으면 텔레그램으로 알림을 보냅니다.
+    웹사이트를 크롤링하여 새로운 게시글이 있으면 라인으로 알림을 보냅니다.
     """
     print("크롤링 및 알림 작업을 시작합니다...")
     
@@ -64,11 +64,11 @@ def crawl_and_notify():
             print(f"공지 발송 중: {title}")
             
             success_count = 0
-            for chat_id in recipients:
-                if tg_send_message(chat_id, text, disable_web_page_preview=False):
+            for user_id in recipients:
+                if line_send_message(user_id, title, link):
                     success_count += 1
             
-            print(f"텔레그램 전송 완료: {success_count}/{len(recipients)}")
+            print(f"라인 전송 완료: {success_count}/{len(recipients)}")
             total_sent += success_count
             
             # DB에 발송 완료 기록(중복 방지)
@@ -85,39 +85,70 @@ def crawl_and_notify():
         print(f"크롤링 및 알림 작업 중 오류 발생: {e}")
         return jsonify({"status": "error", "message": f"작업 오류: {str(e)}"}), 500
 
-# 텔레그램 봇 웹훅 엔드포인트(옵션)
-@app.route('/telegram/webhook', methods=['POST'])
-def telegram_webhook():
+# 라인 챗봇 웹훅 엔드포인트
+@app.route('/line/webhook', methods=['POST'])
+def line_webhook():
     try:
-        update = request.get_json(force=True, silent=True) or {}
-        message = update.get('message') or update.get('edited_message') or {}
-        chat = message.get('chat') or {}
-        chat_id = chat.get('id')
-        text = (message.get('text') or '').strip()
-        print(f"Telegram webhook: chat_id={chat_id}, text='{text}'")
-        if not chat_id or not text:
-            return jsonify({"ok": True})
-
-        # 간단 응답만 유지(필요 없으면 웹훅 비활성화 가능)
-        if text in ('/start', '/help'):
-            help_text = (
-                "이 봇은 매일 12시에 새로운 학사공지를 전송합니다.\n"
-                "필요 시 /subscribe 로 구독, /unsubscribe 로 해제할 수 있습니다."
-            )
-            tg_send_message(chat_id, help_text)
-        elif text == '/subscribe':
-            database.add_subscriber(str(chat_id))
-            tg_send_message(chat_id, '알림 구독이 완료되었습니다.')
-        elif text == '/unsubscribe':
-            database.remove_subscriber(str(chat_id))
-            tg_send_message(chat_id, '알림 구독이 해제되었습니다.')
-        else:
-            tg_send_message(chat_id, "이 봇은 스케줄 알림용입니다. /help 를 참고하세요.")
-
-        return jsonify({"ok": True})
+        # 서명 검증
+        signature = request.headers.get('X-Line-Signature')
+        if not signature:
+            return jsonify({"error": "Missing signature"}), 400
+        
+        body = request.get_data(as_text=True)
+        if not verify_signature(body, signature):
+            return jsonify({"error": "Invalid signature"}), 400
+        
+        data = request.get_json(force=True, silent=True) or {}
+        print(f"Line webhook: {data}")
+        
+        # 라인 이벤트 처리
+        for event in data.get('events', []):
+            if event.get('type') == 'message':
+                user_id = event.get('source', {}).get('userId')
+                message_text = event.get('message', {}).get('text', '').strip()
+                
+                print(f"라인 사용자: {user_id}, 메시지: {message_text}")
+                
+                if not user_id:
+                    continue
+                
+                # 명령어 처리
+                if message_text in ('도움말', 'help', '시작'):
+                    from line_utils import send_help_message
+                    send_help_message(user_id)
+                    
+                elif message_text in ('구독', '알림', '구독하기'):
+                    database.add_subscriber(str(user_id))
+                    from line_utils import send_subscription_message
+                    send_subscription_message(user_id, True)
+                    
+                elif message_text in ('구독해제', '구독취소', '해제'):
+                    database.remove_subscriber(str(user_id))
+                    from line_utils import send_subscription_message
+                    send_subscription_message(user_id, False)
+                    
+                elif message_text in ('최신공지', '최신', '공지'):
+                    try:
+                        latest_post = get_latest_post()
+                        if latest_post:
+                            from line_utils import send_notice_message
+                            send_notice_message(user_id, latest_post['title'], latest_post['link'])
+                        else:
+                            from line_utils import send_message
+                            send_message(user_id, "현재 공지사항을 가져올 수 없습니다. 잠시 후 다시 시도해주세요.")
+                    except Exception as e:
+                        from line_utils import send_message
+                        send_message(user_id, "공지사항을 가져오는 중 오류가 발생했습니다.")
+                
+                else:
+                    from line_utils import send_message
+                    send_message(user_id, "안녕하세요! 호서대학교 학사공지 알림봇입니다.\n\n'도움말'을 입력하시면 사용법을 확인할 수 있습니다.")
+        
+        return jsonify({"status": "ok"}), 200
+        
     except Exception as e:
-        print(f"텔레그램 웹훅 처리 오류: {e}")
-        return jsonify({"ok": False}), 200
+        print(f"라인 웹훅 처리 오류: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/status', methods=['GET'])
 def status():
