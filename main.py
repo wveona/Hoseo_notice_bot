@@ -141,6 +141,71 @@ def status():
         print(f"상태 확인 중 오류 발생: {e}")
         return jsonify({"status": "error", "message": f"상태 확인 중 오류가 발생했습니다: {str(e)}", "crawler_status": "error"}), 500
 
+@app.route('/admin/db', methods=['GET', 'POST'])
+def admin_db():
+    """데이터베이스 관리 (GET: 조회, POST: 수정)"""
+    # 관리자 토큰 검증
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        incoming_token = request.headers.get('X-ADMIN-TOKEN')
+        if incoming_token != admin_token:
+            return jsonify({"status": "error", "message": "unauthorized"}), 401
+    
+    try:
+        if request.method == 'GET':
+            # 조회
+            subscribers = database.list_subscribers()
+            return jsonify({
+                "status": "success",
+                "subscribers": subscribers,
+                "subscribers_count": len(subscribers)
+            }), 200
+            
+        elif request.method == 'POST':
+            # 수정
+            data = request.get_json()
+            action = data.get('action')
+            
+            if action == 'add_subscriber':
+                chat_id = data.get('chat_id')
+                if chat_id:
+                    database.add_subscriber(str(chat_id))
+                    return jsonify({"status": "success", "message": f"구독자 {chat_id} 추가됨"}), 200
+                    
+            elif action == 'remove_subscriber':
+                chat_id = data.get('chat_id')
+                if chat_id:
+                    database.remove_subscriber(str(chat_id))
+                    return jsonify({"status": "success", "message": f"구독자 {chat_id} 제거됨"}), 200
+                    
+            elif action == 'clear_subscribers':
+                # 모든 구독자 제거
+                import psycopg2
+                conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM subscribers")
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "success", "message": "모든 구독자 제거됨"}), 200
+                
+            elif action == 'clear_sent_posts':
+                # 발송된 게시글 기록 제거
+                import psycopg2
+                conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM sent_posts")
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return jsonify({"status": "success", "message": "발송된 게시글 기록 제거됨"}), 200
+                
+            else:
+                return jsonify({"status": "error", "message": "알 수 없는 액션"}), 400
+                
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"DB 관리 중 오류: {str(e)}"}), 500
+
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
