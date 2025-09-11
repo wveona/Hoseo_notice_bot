@@ -91,16 +91,16 @@ BOARD_ACTION_ID = "MAPP_1708240139"
 - 테이블: `posts(link UNIQUE)`, `subscribers(user_id UNIQUE)`는 서버 시작 시 자동 생성됩니다.
 
 ## 🐛 문제 해결
-- 403 또는 전송 실패: 텔레그램 토큰/웹훅 URL 확인, 서버 HTTPS 인증서 점검
+- 403 또는 전송 실패: 라인 토큰/웹훅 URL 확인, 서버 HTTPS 인증서 점검
 - DB 연결 실패: `DATABASE_URL` 형식/권한/방화벽 확인(Render 대시보드 Credentials 사용)
 - 응답 지연: 크롤링을 즉시 수행하면 느릴 수 있으므로 캐시 고려
 - 로컬 테스트: `ngrok http 8080` 으로 공개 URL 생성 후 웹훅 설정
 
 ## 📝 로그 예시
 ```
-크롤링 및 알림 작업을 시작합니다...
+크롤링 및 라인 알림 작업을 시작합니다...
 새로운 공지 발견: OO 공지 제목
 공지 링크: https://www.hoseo.ac.kr/...&schIdx=XXXXX
-텔레그램 전송 완료: 3/3
+라인 전송 완료: 3/3
 ✅ DB에 공지 기록 완료: OO 공지 제목...
 ``` 

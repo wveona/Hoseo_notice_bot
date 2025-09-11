@@ -28,7 +28,7 @@ def crawl_and_notify():
     """
     웹사이트를 크롤링하여 새로운 게시글이 있으면 라인으로 알림을 보냅니다.
     """
-    print("크롤링 및 알림 작업을 시작합니다...")
+    print("크롤링 및 라인 알림 작업을 시작합니다...")
     
     # 스케줄러 보안: 환경변수 SCHEDULER_TOKEN이 설정된 경우 헤더 검증
     expected_token = os.environ.get('SCHEDULER_TOKEN')
