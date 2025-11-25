@@ -73,7 +73,6 @@ curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
 ### POST /telegram/webhook
 텔레그램이 전송하는 업데이트를 수신합니다. 지원 명령어:
 - `/help` 또는 `/start`: 명령어 안내
-- `/latest`: 최근 5개 공지 확인
 - `/subscribe`: 알림 구독(현재 채팅 id를 구독자로 등록)
 - `/unsubscribe`: 알림 구독 해제
 
