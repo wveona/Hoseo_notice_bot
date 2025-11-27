@@ -5,10 +5,8 @@ from telegram_utils import send_message as tg_send_message
 import database
 import os
 
-# Flask 애플리케이션 객체를 생성합니다.
 app = Flask(__name__)
 
-# 간단한 헬스체크 및 루트 페이지
 @app.route('/', methods=['GET'])
 def root():
     return jsonify({"status": "ok", "service": "hoseo_notice_bot", "env": "render"}), 200
@@ -17,12 +15,8 @@ def root():
 def healthz():
     return "ok", 200
 
-# 애플리케이션이 처음 실행될 때, 데이터베이스를 초기화하는 함수를 호출합니다.
-# 이를 통해 서버가 시작될 때 항상 테이블이 준비됩니다.
 database.init_db()
 
-# '/crawl-and-notify' 경로로 POST 요청이 올 때 실행될 함수를 정의합니다.
-# 이 경로는 스케줄러(예: Render Cron Job)가 주기적으로 호출할 주소(엔드포인트)입니다.
 @app.route('/crawl-and-notify', methods=['POST'])
 def crawl_and_notify():
     """
@@ -38,7 +32,6 @@ def crawl_and_notify():
             return jsonify({"status": "error", "message": "unauthorized"}), 401
     
     try:
-        # 새로운 게시글들을 확인합니다 (여러 개일 수 있음)
         new_posts = get_new_posts_since_last_check()
         
         if not new_posts:
@@ -47,7 +40,6 @@ def crawl_and_notify():
         
         print(f"새로운 공지 {len(new_posts)}개 발견")
         
-        # 수신자 결정: TARGET_CHAT_IDS(쉼표구분) 우선, 없으면 DB 구독자
         target_chat_ids_env = os.environ.get('TARGET_CHAT_IDS', '').strip()
         if target_chat_ids_env:
             recipients = [cid.strip() for cid in target_chat_ids_env.split(',') if cid.strip()]
@@ -85,7 +77,6 @@ def crawl_and_notify():
         print(f"크롤링 및 알림 작업 중 오류 발생: {e}")
         return jsonify({"status": "error", "message": f"작업 오류: {str(e)}"}), 500
 
-# 텔레그램 봇 웹훅 엔드포인트(옵션)
 @app.route('/telegram/webhook', methods=['POST'])
 def telegram_webhook():
     try:
@@ -144,7 +135,6 @@ def status():
 @app.route('/admin/db', methods=['GET', 'POST'])
 def admin_db():
     """데이터베이스 관리 (GET: 조회, POST: 수정)"""
-    # 관리자 토큰 검증
     admin_token = os.environ.get('ADMIN_TOKEN')
     if admin_token:
         incoming_token = request.headers.get('X-ADMIN-TOKEN')
@@ -153,7 +143,6 @@ def admin_db():
     
     try:
         if request.method == 'GET':
-            # 조회
             subscribers = database.list_subscribers()
             return jsonify({
                 "status": "success",
@@ -162,7 +151,6 @@ def admin_db():
             }), 200
             
         elif request.method == 'POST':
-            # 수정
             data = request.get_json()
             action = data.get('action')
             
@@ -179,7 +167,6 @@ def admin_db():
                     return jsonify({"status": "success", "message": f"구독자 {chat_id} 제거됨"}), 200
                     
             elif action == 'clear_subscribers':
-                # 모든 구독자 제거
                 import psycopg2
                 conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
                 cursor = conn.cursor()
@@ -190,7 +177,6 @@ def admin_db():
                 return jsonify({"status": "success", "message": "모든 구독자 제거됨"}), 200
                 
             elif action == 'clear_sent_posts':
-                # 발송된 게시글 기록 제거
                 import psycopg2
                 conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
                 cursor = conn.cursor()

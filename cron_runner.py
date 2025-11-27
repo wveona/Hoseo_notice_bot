@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Cron Job용 실행 스크립트
 """

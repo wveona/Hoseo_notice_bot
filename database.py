@@ -1,17 +1,13 @@
-# database.py
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# Render/12-factor: DATABASE_URL 환경변수 사용
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-# Render PostgreSQL는 보통 SSL이 요구됩니다. sslmode 파라미터가 없으면 require로 보강합니다.
 if DATABASE_URL and "sslmode=" not in DATABASE_URL:
     sep = "&" if "?" in DATABASE_URL else "?"
     DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
 
-# 테이블명 상수 (기존 'posts' 명칭 충돌 회피)
 POSTS_TABLE = "sent_posts"
 SUBSCRIBERS_TABLE = "subscribers"
 
@@ -23,11 +19,7 @@ def _get_connection():
 
 
 def init_db():
-    """
-    PostgreSQL에 필요한 테이블을 생성합니다.
-    - sent_posts(link UNIQUE)
-    - subscribers(user_id UNIQUE)
-    """
+    """필요한 테이블을 생성합니다."""
     conn = _get_connection()
     cur = conn.cursor()
     try:
@@ -79,10 +71,6 @@ def is_post_sent(link: str) -> bool:
         cur.close()
         conn.close()
 
-
-# ==========================
-# 구독자 관리 유틸 함수
-# ==========================
 
 def add_subscriber(user_id: str) -> bool:
     conn = _get_connection()
