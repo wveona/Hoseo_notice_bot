@@ -32,7 +32,20 @@ def crawl_and_notify():
             return jsonify({"status": "error", "message": "unauthorized"}), 401
     
     try:
-        new_posts = get_new_posts_since_last_check()
+        try:
+            new_posts = get_new_posts_since_last_check()
+        except Exception as crawl_error:
+            error_msg = str(crawl_error)
+            print(f"크롤링 중 오류 발생: {error_msg}")
+            
+            if "429" in error_msg or "Too Many Requests" in error_msg:
+                return jsonify({
+                    "status": "error",
+                    "message": "HTTP 429: 웹사이트에서 요청이 너무 많다고 응답했습니다. 잠시 후 다시 시도해주세요.",
+                    "error_type": "rate_limit"
+                }), 429
+            
+            raise
         
         if not new_posts:
             print("새로운 공지가 없습니다.")

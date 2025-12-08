@@ -9,8 +9,19 @@ NOTICE_URL = "https://www.hoseo.ac.kr/Home//BBSList.mbz?action=MAPP_1708240139&p
 NOTICE_VIEW_URL_BASE = "https://www.hoseo.ac.kr/Home//BBSView.mbz"
 BOARD_ACTION_ID = "MAPP_1708240139"
 
-def _make_request_with_retry(url, max_retries=3, initial_delay=2):
+_session = None
+
+def _get_session():
+    """세션을 생성하고 반환합니다."""
+    global _session
+    if _session is None:
+        _session = requests.Session()
+    return _session
+
+def _make_request_with_retry(url, max_retries=5, initial_delay=5):
     """HTTP 요청을 재시도 로직과 함께 실행합니다."""
+    session = _get_session()
+    
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -18,43 +29,69 @@ def _make_request_with_retry(url, max_retries=3, initial_delay=2):
         'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
-        'Referer': 'https://www.hoseo.ac.kr/'
+        'Referer': 'https://www.hoseo.ac.kr/',
+        'Cache-Control': 'max-age=0'
     }
     
     for attempt in range(max_retries):
         try:
-            if attempt > 0:
-                delay = initial_delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
+            if attempt == 0:
+                initial_wait = random.uniform(2, 5)
+                print(f"첫 요청 전 {initial_wait:.2f}초 대기 중...")
+                time.sleep(initial_wait)
+            else:
+                delay = initial_delay * (2 ** (attempt - 1)) + random.uniform(1, 3)
                 print(f"재시도 {attempt}/{max_retries - 1} - {delay:.2f}초 대기 중...")
                 time.sleep(delay)
             
-            response = requests.get(url, headers=headers, timeout=15)
+            response = session.get(url, headers=headers, timeout=20, allow_redirects=True)
             
             if response.status_code == 429:
-                retry_after = int(response.headers.get('Retry-After', initial_delay * (2 ** attempt)))
-                print(f"HTTP 429 발생 - {retry_after}초 후 재시도...")
+                retry_after_header = response.headers.get('Retry-After')
+                if retry_after_header:
+                    try:
+                        retry_after = int(retry_after_header)
+                    except ValueError:
+                        retry_after = initial_delay * (2 ** attempt)
+                else:
+                    retry_after = initial_delay * (2 ** attempt) + random.uniform(5, 10)
+                
+                print(f"HTTP 429 발생 (시도 {attempt + 1}/{max_retries}) - {retry_after:.2f}초 후 재시도...")
                 if attempt < max_retries - 1:
                     time.sleep(retry_after)
                     continue
                 else:
-                    response.raise_for_status()
+                    raise requests.exceptions.HTTPError(f"HTTP 429: 최대 재시도 횟수 초과", response=response)
             
             response.raise_for_status()
             return response
             
         except requests.exceptions.HTTPError as e:
-            if e.response and e.response.status_code == 429 and attempt < max_retries - 1:
-                retry_after = int(e.response.headers.get('Retry-After', initial_delay * (2 ** attempt)))
-                print(f"HTTP 429 예외 발생 - {retry_after}초 후 재시도...")
-                time.sleep(retry_after)
-                continue
+            if e.response and e.response.status_code == 429:
+                if attempt < max_retries - 1:
+                    retry_after_header = e.response.headers.get('Retry-After')
+                    if retry_after_header:
+                        try:
+                            retry_after = int(retry_after_header)
+                        except ValueError:
+                            retry_after = initial_delay * (2 ** attempt)
+                    else:
+                        retry_after = initial_delay * (2 ** attempt) + random.uniform(5, 10)
+                    
+                    print(f"HTTP 429 예외 발생 (시도 {attempt + 1}/{max_retries}) - {retry_after:.2f}초 후 재시도...")
+                    time.sleep(retry_after)
+                    continue
+                else:
+                    print(f"HTTP 429: 최대 재시도 횟수({max_retries}) 초과")
+                    raise
             raise
         except requests.exceptions.RequestException as e:
             if attempt < max_retries - 1:
+                print(f"요청 오류 발생: {e} - 재시도 예정...")
                 continue
             raise
     
-    raise requests.exceptions.RequestException("최대 재시도 횟수 초과")
+    raise requests.exceptions.RequestException(f"최대 재시도 횟수({max_retries}) 초과")
 
 
 def get_latest_post():
