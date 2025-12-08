@@ -105,7 +105,7 @@ def telegram_webhook():
         # 간단 응답만 유지(필요 없으면 웹훅 비활성화 가능)
         if text in ('/start', '/help'):
             help_text = (
-                "이 봇은 매일 12시에 새로운 학사공지를 전송합니다.\n"
+                "이 봇은 매일 12시 30분에 새로운 학사공지를 전송합니다.\n"
                 "필요 시 /subscribe 로 구독, /unsubscribe 로 해제할 수 있습니다."
             )
             tg_send_message(chat_id, help_text)
